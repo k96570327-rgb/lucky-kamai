@@ -16,6 +16,11 @@ jobs:
         with:
           channel: stable
       - run: flutter create . --platforms=android --project-name lucky_kamai
+      - name: Allow internet and set app name
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' $M
+          sed -i 's|android:label="lucky_kamai"|android:label="Lucky Kamai"|' $M
       - run: flutter pub get
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
