@@ -8,8 +8,8 @@ const supabaseUrl = 'https://cgjqjyypuwwjzvhsodlq.supabase.co';
 const supabaseKey = 'sb_publishable_UBWjqI1A4cR2Lkv3S3N2aw_I6JO8ZxY'; // public key, safe in the app
 
 const prizes = [10, 50, 20, 100, 5, 30, 200, 10]; // paise, same order as the server
-const dailySpins = 3, dailyCards = 3, minWithdraw = 5000;
-const ink = Color(0xFF3A1030), rose = Color(0xFFC2386B), gold = Color(0xFFF5A524), teal = Color(0xFF0E7C7B), cream = Color(0xFFFFF4DC);
+const dailySpins = 3, dailyCards = 3, minWithdraw = 5000, refBonus = 500;
+const ink = Color(0xFF0B0620), panel = Color(0xFF1B1038), rose = Color(0xFFD81B60), gold = Color(0xFFF5B301), teal = Color(0xFF2BD67B), cream = Color(0xFFFFE9A8), purple = Color(0xFF7B2CBF), blue = Color(0xFF3D35D1), green = Color(0xFF11A24C);
 
 SupabaseClient get sb => Supabase.instance.client;
 String rs(num paise) => '₹${(paise / 100).toStringAsFixed(2)}';
@@ -31,7 +31,16 @@ class App extends StatelessWidget {
   Widget build(BuildContext c) => MaterialApp(
         title: 'Lucky Kamai',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(colorSchemeSeed: rose, scaffoldBackgroundColor: cream, useMaterial3: true),
+        theme: ThemeData(
+          brightness: Brightness.dark,
+          colorSchemeSeed: purple,
+          scaffoldBackgroundColor: ink,
+          useMaterial3: true,
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink, textStyle: const TextStyle(fontWeight: FontWeight.w800), shape: const StadiumBorder()),
+          ),
+          navigationBarTheme: NavigationBarThemeData(backgroundColor: panel, indicatorColor: gold.withAlpha(90)),
+        ),
         home: const AuthGate(),
       );
 }
@@ -86,8 +95,8 @@ class _LoginPageState extends State<LoginPage> {
         body: SafeArea(
           child: ListView(padding: const EdgeInsets.all(24), children: [
             const SizedBox(height: 40),
-            const Text('Lucky Kamai', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: ink)),
-            const Text('Spin karo, scratch karo, kamao'),
+            const Text('Lucky Kamai', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: gold)),
+            const Text('Spin. Scratch. Win.', style: TextStyle(color: cream, fontSize: 16)),
             const SizedBox(height: 32),
             TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder())),
             const SizedBox(height: 12),
@@ -107,7 +116,7 @@ class Store extends ChangeNotifier {
   int bal = 0, spins = dailySpins, cards = dailyCards, refs = 0;
   String code = '';
   bool pending = false, usedRef = false;
-  List<Map<String, dynamic>> hist = [];
+  List<Map<String, dynamic>> hist = [], wd = [];
 
   Future<void> load() async {
     final p = Map<String, dynamic>.from(await sb.rpc('ensure_profile') as Map);
@@ -126,6 +135,8 @@ class Store extends ChangeNotifier {
     }
     final h = await sb.from('ledger').select().order('at', ascending: false).limit(50);
     hist = List<Map<String, dynamic>>.from(h);
+    final w = await sb.from('withdrawals').select().order('created_at', ascending: false).limit(20);
+    wd = List<Map<String, dynamic>>.from(w);
     notifyListeners();
   }
 
@@ -220,20 +231,29 @@ class _HomeState extends State<Home> {
       listenable: s,
       builder: (_, __) => Scaffold(
         appBar: AppBar(
-          backgroundColor: cream,
-          title: const Text('Lucky Kamai', style: TextStyle(fontWeight: FontWeight.w800, color: ink)),
+          backgroundColor: ink,
+          title: const Text('Lucky Kamai', style: TextStyle(fontWeight: FontWeight.w800, color: gold)),
           actions: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(color: ink, borderRadius: BorderRadius.circular(99)),
-              child: Text(rs(s.bal), style: const TextStyle(color: cream, fontSize: 18, fontWeight: FontWeight.bold)),
+              decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFFFE08A), gold]), borderRadius: BorderRadius.circular(99)),
+              child: Text(rs(s.bal), style: const TextStyle(color: ink, fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             IconButton(icon: const Icon(Icons.logout), tooltip: 'Logout', onPressed: () => sb.auth.signOut()),
           ],
         ),
         body: Padding(
-          padding: const EdgeInsets.all(14),
-          child: [SpinTab(s, toast), ScratchTab(s, toast), ReferTab(s, toast), WalletTab(s, toast)][tab],
+          padding: const EdgeInsets.all(12),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: panel,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: gold, width: 2),
+              boxShadow: [BoxShadow(color: purple.withAlpha(140), blurRadius: 24)],
+            ),
+            child: [SpinTab(s, toast), ScratchTab(s, toast), ReferTab(s, toast), WalletTab(s, toast)][tab],
+          ),
         ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: tab,
@@ -307,7 +327,7 @@ class _SpinTabState extends State<SpinTab> with SingleTickerProviderStateMixin {
                 builder: (_, __) => Transform.rotate(angle: anim?.value ?? rot, child: CustomPaint(size: const Size(290, 290), painter: WheelPainter())),
               ),
             ),
-            const Icon(Icons.arrow_drop_down, size: 56, color: ink),
+            const Icon(Icons.arrow_drop_down, size: 56, color: gold),
           ]),
         ),
         FilledButton(
@@ -321,10 +341,10 @@ class WheelPainter extends CustomPainter {
   @override
   void paint(Canvas c, Size sz) {
     final r = sz.width / 2, o = Offset(r, r);
-    const cols = [gold, rose, teal];
+    const cols = [blue, purple, rose, green];
     for (var i = 0; i < 8; i++) {
       final a = -pi / 2 + i * pi / 4;
-      c.drawArc(Rect.fromCircle(center: o, radius: r), a, pi / 4, true, Paint()..color = cols[i % 3]);
+      c.drawArc(Rect.fromCircle(center: o, radius: r), a, pi / 4, true, Paint()..color = cols[i % 4]);
       final tp = TextPainter(
         text: TextSpan(text: '₹${prizes[i] / 100}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
         textDirection: TextDirection.ltr,
@@ -336,8 +356,15 @@ class WheelPainter extends CustomPainter {
       tp.paint(c, Offset(-tp.width / 2, -tp.height / 2));
       c.restore();
     }
-    c.drawCircle(o, r, Paint()..style = PaintingStyle.stroke..strokeWidth = 6..color = ink);
-    c.drawCircle(o, 18, Paint()..color = ink);
+    for (var i = 0; i < 8; i++) {
+      final a = -pi / 2 + i * pi / 4;
+      final p = Offset(o.dx + cos(a) * r, o.dy + sin(a) * r);
+      c.drawLine(o, p, Paint()..color = gold..strokeWidth = 3);
+      c.drawCircle(p, 6, Paint()..color = gold);
+    }
+    c.drawCircle(o, r, Paint()..style = PaintingStyle.stroke..strokeWidth = 8..color = gold);
+    c.drawCircle(o, 22, Paint()..color = gold);
+    c.drawCircle(o, 10, Paint()..color = purple);
   }
 
   @override
@@ -389,7 +416,7 @@ class _ScratchTabState extends State<ScratchTab> {
                     key: key,
                     brushSize: 34,
                     threshold: 45,
-                    color: rose,
+                    color: const Color(0xFFD4A017),
                     onThreshold: () async {
                       if (claimed) return;
                       claimed = true;
@@ -431,7 +458,7 @@ class _ReferTabState extends State<ReferTab> {
   Widget build(BuildContext context) {
     final s = widget.s;
     return ListView(children: [
-      const Text('Dost bulao, ₹10 kamao', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+      Text('Dost bulao, ${rs(refBonus)} kamao', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
       const SizedBox(height: 12),
       Container(
         padding: const EdgeInsets.all(14),
@@ -443,7 +470,7 @@ class _ReferTabState extends State<ReferTab> {
       FilledButton.icon(
         icon: const Icon(Icons.share),
         label: const Text('Share karo'),
-        onPressed: () => Share.share('Lucky Kamai pe spin aur scratch karke UPI mein paise kamao! App mein signup karke mera code ${s.code} daalo aur ₹10 bonus pao.'),
+        onPressed: () => Share.share('Lucky Kamai pe spin aur scratch karke UPI mein paise kamao! App mein signup karke mera code ${s.code} daalo aur ${rs(refBonus)} bonus pao.'),
       ),
       const SizedBox(height: 4),
       Text('Joined dost: ${s.refs}'),
@@ -460,7 +487,7 @@ class _ReferTabState extends State<ReferTab> {
             : () async {
                 setState(() => busy = true);
                 final e = await s.applyCode(c.text);
-                widget.toast(e ?? '₹10 bonus mil gaya');
+                widget.toast(e ?? '${rs(refBonus)} bonus mil gaya');
                 if (mounted) setState(() => busy = false);
               },
         child: Text(s.usedRef ? 'Code pehle hi laga chuka hai' : 'Code lagao'),
@@ -485,10 +512,10 @@ class _WalletTabState extends State<WalletTab> {
   @override
   Widget build(BuildContext context) {
     final s = widget.s;
-    return ListView(children: [
+    return RefreshIndicator(onRefresh: s.load, child: ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
       Text('UPI se nikalo (minimum ${rs(minWithdraw)})', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
       const SizedBox(height: 8),
-      LinearProgressIndicator(value: (s.bal / minWithdraw).clamp(0, 1).toDouble(), minHeight: 10, borderRadius: BorderRadius.circular(9)),
+      LinearProgressIndicator(value: (s.bal / minWithdraw).clamp(0, 1).toDouble(), color: gold, minHeight: 10, borderRadius: BorderRadius.circular(9)),
       const SizedBox(height: 12),
       if (s.pending) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('Aapki withdraw request pending hai. Paisa jaldi bheja jayega.', style: TextStyle(color: teal))),
       TextField(controller: u, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'UPI ID (naam@bank)', border: OutlineInputBorder())),
@@ -504,6 +531,22 @@ class _WalletTabState extends State<WalletTab> {
               },
         child: const Text('Withdraw request bhejo'),
       ),
+      if (s.wd.isNotEmpty) ...[
+        const Divider(height: 32),
+        const Text('Withdraw history', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        ...s.wd.map((w) {
+          final st = w['status'] as String;
+          final label = st == 'paid' ? 'Paid ✓' : st == 'rejected' ? 'Rejected (paisa wapas)' : 'Pending';
+          final colr = st == 'paid' ? teal : st == 'rejected' ? rose : gold;
+          final when = DateTime.parse(w['created_at'] as String).toLocal().toString().substring(0, 16);
+          return ListTile(
+            dense: true,
+            title: Text('${rs(w['amount'] as int)} → ${w['upi']}'),
+            subtitle: Text(when),
+            trailing: Text(label, style: TextStyle(color: colr, fontWeight: FontWeight.bold)),
+          );
+        }),
+      ],
       const Divider(height: 32),
       const Text('History', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
       if (s.hist.isEmpty) const Padding(padding: EdgeInsets.all(12), child: Text('Abhi koi kamai nahi. Pehla spin kar lo.')),
@@ -517,6 +560,6 @@ class _WalletTabState extends State<WalletTab> {
           trailing: Text('${a >= 0 ? '+' : '-'}${rs(a.abs())}', style: TextStyle(color: a >= 0 ? teal : rose, fontWeight: FontWeight.bold)),
         );
       }),
-    ]);
+    ]));
   }
 }
